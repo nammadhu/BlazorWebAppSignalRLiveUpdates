@@ -1,4 +1,4 @@
-using BlazorWebAppSignalR.Client.Pages;
+using Blazored.LocalStorage;
 using BlazorWebAppSignalR.Components;
 
 namespace BlazorWebAppSignalR
@@ -17,6 +17,7 @@ namespace BlazorWebAppSignalR
                 .AddInteractiveServerComponents()
                 .AddInteractiveWebAssemblyComponents();
 
+            builder.Services.AddBlazoredLocalStorage();
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.

@@ -1,54 +1,219 @@
 ﻿@page "/town/{TownId}"
 @using Microsoft.AspNetCore.SignalR.Client
 @using Shared
+@using Blazored.LocalStorage
 @inject NavigationManager Navigation
+@inject ILocalStorageService LocalStorage
 
-<h3>Real-Time Updates for @TownId</h3>
+
+<h3>Real-Time Business Cards for @TownId</h3>
+@if (!isConnected)
+{
+    <p>Connection lost. Attempting to reconnect...</p>
+}
+else if (isLoading)
+{
+    <p>Loading...</p>
+}
+
+<input @bind="newBusinessName" placeholder="Enter business name" />
+<input @bind="newContactName" placeholder="Enter contact name" />
+<input @bind="newPhoneNumber" placeholder="Enter phone number" />
+<input @bind="newEmail" placeholder="Enter email" />
+<button @onclick="AddBusinessCard">Add Business Card</button>
 
 <ul>
-    @foreach (var town in towns)
+    @foreach (var card in businessCards)
     {
-        <li>@town.Name</li>
+        <li>
+            @card.BusinessName - @card.ContactName - @card.PhoneNumber - @card.Email
+            <button @onclick="() => EditBusinessCard(card)">Edit</button>
+        </li>
     }
 </ul>
-<button @onclick="SendMessage">Send Test Update</button>
 
 @code {
+    private HubConnection connection;
     [Parameter]
     public string TownId { get; set; }
-    private List<TownDto> towns = new List<TownDto>();
-    private HubConnection connection;
 
-    protected override async Task OnInitializedAsync()
+    private List<BusinessCardDto> businessCards = new List<BusinessCardDto>();
+
+    private string newBusinessName;
+    private string newContactName;
+    private string newPhoneNumber;
+    private string newEmail;
+    private string editBusinessCardId;
+
+    private bool isConnected = true;
+    private bool isLoading = true;
+
+    private DateTime lastSyncedTime = DateTime.MinValue;
+
+    //protected override async Task OnAfterRenderAsync(bool firstRender)
+    //{if (!firstRender) return;
+
+    protected override async Task OnInitializedAsync()//this might makes JS issue,so in that case go for onAfterRenderAsync
     {
+    // Load from local storage
+        var storedData = await GetLocalData();
+        if (storedData != null)
+        {
+            businessCards = storedData.Cards;
+            lastSyncedTime = storedData.LastSyncedTime;
+        }
+
+        isLoading = (businessCards == null || businessCards.Count == 0);
+
         connection = new HubConnectionBuilder()
             .WithUrl(Navigation.ToAbsoluteUri("/TownHub"))
             .Build();
+        connection.Closed += async (error) =>
+                {
+                    isConnected = false;
+                    StateHasChanged();
+                    while (!isConnected)
+                    {
+                        try
+                        {
+                            await Task.Delay(5000);
+                            await connection.StartAsync();
+                            await connection.InvokeAsync("JoinGroup", TownId);
+                            isConnected = true;
 
-        connection.On<TownDto>("ReceiveMessage", (town) =>
+                            // Refresh the latest data after reconnecting
+                            var deltaUpdates = await connection.InvokeAsync<List<BusinessCardDto>>("GetDeltaUpdates", TownId, lastSyncedTime);
+                            if (deltaUpdates != null && deltaUpdates.Count > 0)
+                            {
+                                foreach (var card in deltaUpdates)
+                                {
+                                    var index = businessCards.FindIndex(bc => bc.Id == card.Id);
+                                    if (index >= 0)
+                                    {
+                                        businessCards[index] = card;
+                                    }
+                                    else
+                                    {
+                                        businessCards.Add(card);
+                                    }
+                                }
+                                lastSyncedTime = DateTime.UtcNow;
+                                await SaveLocalData();
+                            }
+                        }
+                        catch
+                        {
+                            // Reconnection failed, continue loop
+                        }
+
+                        StateHasChanged();
+                    }
+                };
+
+        connection.On<List<BusinessCardDto>>("ReceiveInitialBusinessCards", async (initialCards) =>
         {
-            // Update towns list
-            towns.Add(town);
+            if (initialCards.Count != businessCards.Count)
+            {
+                businessCards = initialCards;
+                lastSyncedTime = DateTime.UtcNow;
+                await SaveLocalData();
+            }
+
+            isLoading = false;
+            StateHasChanged();
+        });
+
+        connection.On<BusinessCardDto>("ReceiveBusinessCard", async (updatedCard) =>
+        {
+            // Update or add the business card in the list
+            var index = businessCards.FindIndex(bc => bc.Id == updatedCard.Id);
+            if (index >= 0)
+            {
+                businessCards[index] = updatedCard;
+            }
+            else
+            {
+                businessCards.Add(updatedCard);
+            }
+            lastSyncedTime = DateTime.UtcNow;
+            await SaveLocalData();
             StateHasChanged();
         });
 
         await connection.StartAsync();
         await connection.InvokeAsync("JoinGroup", TownId);
-
-        // Initial data load
-        towns = new List<TownDto> { new TownDto() { Id = "0", Name = "Zero Town" } }; //await TownService.GetTownsAsync(TownId);
+        // Initial data load - moved to JoinGroup in the hub response
+        //towns = new List<TownDto> { new TownDto() { Id = "0", Name = "Zero Town" } }; //await TownService.GetTownsAsync(TownId);
     }
-
-    public async Task SendMessage()
+    private async Task AddBusinessCard()
     {
-        var townDto = new TownDto { Id = TownId, Name = "Updated Town:"+DateTime.Now.ToString() }; // Example data
-        await connection.InvokeAsync("SendMessageToGroup", TownId, townDto);
+        if (!string.IsNullOrEmpty(newBusinessName) && !string.IsNullOrEmpty(newContactName))
+        {
+            var businessCardDto = new BusinessCardDto
+                {
+                    Id = string.IsNullOrEmpty(editBusinessCardId) ? Guid.NewGuid().ToString() : editBusinessCardId,
+                    BusinessName = newBusinessName,
+                    ContactName = newContactName,
+                    PhoneNumber = newPhoneNumber,
+                    Email = newEmail,
+                    TownId = TownId
+                };
+            if (string.IsNullOrEmpty(editBusinessCardId))
+            {
+                await connection.InvokeAsync("AddBusinessCard", TownId, businessCardDto);
+            }
+            else
+            {
+                await connection.InvokeAsync("UpdateBusinessCard", TownId, businessCardDto);
+                editBusinessCardId = null;
+            }
+            newBusinessName = string.Empty;
+            newContactName = string.Empty;
+            newPhoneNumber = string.Empty;
+            newEmail = string.Empty;
+        }
     }
-
+    private void EditBusinessCard(BusinessCardDto card)
+    {
+        newBusinessName = card.BusinessName;
+        newContactName = card.ContactName;
+        newPhoneNumber = card.PhoneNumber;
+        newEmail = card.Email;
+        editBusinessCardId = card.Id;
+    }
     public async ValueTask DisposeAsync()
     {
         await connection.InvokeAsync("LeaveGroup", TownId);
         await connection.StopAsync();
         await connection.DisposeAsync();
+    }
+
+    private async Task<LocalData?> GetLocalData()
+    {
+        try
+        {
+            var storedData = await LocalStorage.GetItemAsync<LocalData>($"businessCards_{TownId}");
+            return storedData;
+        }
+        catch (Exception e)
+        {
+            //ignore as parsing issue
+        }
+        return null;
+    }
+    private async Task SaveLocalData()
+    {
+        var localData = new LocalData
+            {
+                Cards = businessCards,
+                LastSyncedTime = lastSyncedTime
+            };
+        await LocalStorage.SetItemAsync($"businessCards_{TownId}", localData);
+    }
+
+    private class LocalData
+    {
+        public List<BusinessCardDto> Cards { get; set; }
+        public DateTime LastSyncedTime { get; set; }
     }
 }
