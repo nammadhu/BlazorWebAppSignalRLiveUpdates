@@ -50,12 +50,13 @@ else if (isLoading)
 
     private DateTime lastSyncedTime = DateTime.MinValue;
 
-    //protected override async Task OnInitializedAsync()//this makes JS issue,so onAfterRender
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    //protected override async Task OnAfterRenderAsync(bool firstRender)
+    //{if (!firstRender) return;
+
+    protected override async Task OnInitializedAsync()//this might makes JS issue,so in that case go for onAfterRenderAsync
     {
-        if (!firstRender) return;
-        // Load from local storage
-        var storedData = await LocalStorage.GetItemAsync<LocalData>($"businessCards_{TownId}");
+    // Load from local storage
+        var storedData = await GetLocalData();
         if (storedData != null)
         {
             businessCards = storedData.Cards;
@@ -119,7 +120,6 @@ else if (isLoading)
             }
 
             isLoading = false;
-            await LocalStorage.SetItemAsync($"businessCards_{TownId}", businessCards);
             StateHasChanged();
         });
 
@@ -186,6 +186,20 @@ else if (isLoading)
         await connection.InvokeAsync("LeaveGroup", TownId);
         await connection.StopAsync();
         await connection.DisposeAsync();
+    }
+
+    private async Task<LocalData?> GetLocalData()
+    {
+        try
+        {
+            var storedData = await LocalStorage.GetItemAsync<LocalData>($"businessCards_{TownId}");
+            return storedData;
+        }
+        catch (Exception e)
+        {
+            //ignore as parsing issue
+        }
+        return null;
     }
     private async Task SaveLocalData()
     {
