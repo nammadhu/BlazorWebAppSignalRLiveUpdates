@@ -7,13 +7,7 @@ using System.Threading.Tasks;
 
 public class TownHub : Hub
 {
-    // Dictionary to maintain lists of business cards for each town
-    private static ConcurrentDictionary<string, List<BusinessCard>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCard>>();
-
-    //public override async Task OnConnectedAsync()
-    //{
-    //    // No need to send the list on connection
-    //}
+    private static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
 
     public async Task JoinGroup(string townId)
     {
@@ -24,8 +18,8 @@ public class TownHub : Hub
         }
         else
         {
-            _businessCardsDictionary[townId] = new List<BusinessCard>();
-            await Clients.Caller.SendAsync("ReceiveInitialBusinessCards", new List<BusinessCard>());
+            _businessCardsDictionary[townId] = new List<BusinessCardDto>();
+            await Clients.Caller.SendAsync("ReceiveInitialBusinessCards", new List<BusinessCardDto>());
         }
     }
 
@@ -34,33 +28,40 @@ public class TownHub : Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, townId);
     }
 
-    public async Task AddBusinessCard(string townId, BusinessCard businessCardDto)
+    public async Task AddBusinessCard(string townId, BusinessCardDto businessCardDto)
     {
-        var businessCards = _businessCardsDictionary.GetOrAdd(townId, new List<BusinessCard>());
+        var businessCards = _businessCardsDictionary.GetOrAdd(townId, new List<BusinessCardDto>());
+        businessCardDto.LastUpdated = DateTime.UtcNow;
         businessCards.Add(businessCardDto);
-
-        // Broadcast the updated list to all clients in the group
-        //await Clients.Group(townId).SendAsync("ReceiveBusinessCards", businessCards);
-
         // Broadcast the new business card to all clients in the group
         await Clients.Group(townId).SendAsync("ReceiveBusinessCard", businessCardDto);
     }
 
-    public async Task UpdateBusinessCard(string townId, BusinessCard businessCardDto)
+    public async Task UpdateBusinessCard(string townId, BusinessCardDto businessCardDto)
     {
         if (_businessCardsDictionary.TryGetValue(townId, out var businessCards))
         {
             var index = businessCards.FindIndex(bc => bc.Id == businessCardDto.Id);
             if (index >= 0)
             {
-                businessCards[index] = businessCardDto;
+                {
+                    businessCardDto.LastUpdated = DateTime.UtcNow;
+                    businessCards[index] = businessCardDto;
 
-                // Broadcast the updated list to all clients in the group
-                //await Clients.Group(townId).SendAsync("ReceiveBusinessCards", businessCards);
-
-                // Broadcast the updated business card to all clients in the group
-                await Clients.Group(townId).SendAsync("ReceiveBusinessCard", businessCardDto);
+                    // Broadcast the updated business card to all clients in the group
+                    await Clients.Group(townId).SendAsync("ReceiveBusinessCard", businessCardDto);
+                }
             }
         }
     }
+    public async Task<List<BusinessCardDto>> GetDeltaUpdates(string townId, DateTime lastUpdated)
+    {
+        if (_businessCardsDictionary.TryGetValue(townId, out var businessCards))
+        {
+            var deltaUpdates = businessCards.Where(bc => bc.LastUpdated > lastUpdated).ToList();
+            return deltaUpdates;
+        }
+        return new List<BusinessCardDto>();
+    }
+
 }

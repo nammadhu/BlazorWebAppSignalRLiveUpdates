@@ -37,7 +37,7 @@ else if (isLoading)
     [Parameter]
     public string TownId { get; set; }
 
-    private List<BusinessCard> businessCards = new List<BusinessCard>();
+    private List<BusinessCardDto> businessCards = new List<BusinessCardDto>();
 
     private string newBusinessName;
     private string newContactName;
@@ -48,13 +48,20 @@ else if (isLoading)
     private bool isConnected = true;
     private bool isLoading = true;
 
+    private DateTime lastSyncedTime = DateTime.MinValue;
 
     //protected override async Task OnInitializedAsync()//this makes JS issue,so onAfterRender
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
         // Load from local storage
-        businessCards = await LocalStorage.GetItemAsync<List<BusinessCard>>($"businessCards_{TownId}") ?? new List<BusinessCard>();
+        var storedData = await LocalStorage.GetItemAsync<LocalData>($"businessCards_{TownId}");
+        if (storedData != null)
+        {
+            businessCards = storedData.Cards;
+            lastSyncedTime = storedData.LastSyncedTime;
+        }
+
         isLoading = (businessCards == null || businessCards.Count == 0);
 
         connection = new HubConnectionBuilder()
@@ -72,6 +79,26 @@ else if (isLoading)
                             await connection.StartAsync();
                             await connection.InvokeAsync("JoinGroup", TownId);
                             isConnected = true;
+
+                            // Refresh the latest data after reconnecting
+                            var deltaUpdates = await connection.InvokeAsync<List<BusinessCardDto>>("GetDeltaUpdates", TownId, lastSyncedTime);
+                            if (deltaUpdates != null && deltaUpdates.Count > 0)
+                            {
+                                foreach (var card in deltaUpdates)
+                                {
+                                    var index = businessCards.FindIndex(bc => bc.Id == card.Id);
+                                    if (index >= 0)
+                                    {
+                                        businessCards[index] = card;
+                                    }
+                                    else
+                                    {
+                                        businessCards.Add(card);
+                                    }
+                                }
+                                lastSyncedTime = DateTime.UtcNow;
+                                await SaveLocalData();
+                            }
                         }
                         catch
                         {
@@ -82,15 +109,21 @@ else if (isLoading)
                     }
                 };
 
-        connection.On<List<BusinessCard>>("ReceiveInitialBusinessCards", async (initialCards) =>
+        connection.On<List<BusinessCardDto>>("ReceiveInitialBusinessCards", async (initialCards) =>
         {
-            businessCards = initialCards;
+            if (initialCards.Count != businessCards.Count)
+            {
+                businessCards = initialCards;
+                lastSyncedTime = DateTime.UtcNow;
+                await SaveLocalData();
+            }
+
             isLoading = false;
             await LocalStorage.SetItemAsync($"businessCards_{TownId}", businessCards);
             StateHasChanged();
         });
 
-        connection.On<BusinessCard>("ReceiveBusinessCard", async (updatedCard) =>
+        connection.On<BusinessCardDto>("ReceiveBusinessCard", async (updatedCard) =>
         {
             // Update or add the business card in the list
             var index = businessCards.FindIndex(bc => bc.Id == updatedCard.Id);
@@ -102,7 +135,8 @@ else if (isLoading)
             {
                 businessCards.Add(updatedCard);
             }
-            await LocalStorage.SetItemAsync($"businessCards_{TownId}", businessCards);
+            lastSyncedTime = DateTime.UtcNow;
+            await SaveLocalData();
             StateHasChanged();
         });
 
@@ -115,13 +149,14 @@ else if (isLoading)
     {
         if (!string.IsNullOrEmpty(newBusinessName) && !string.IsNullOrEmpty(newContactName))
         {
-            var businessCardDto = new BusinessCard
+            var businessCardDto = new BusinessCardDto
                 {
                     Id = string.IsNullOrEmpty(editBusinessCardId) ? Guid.NewGuid().ToString() : editBusinessCardId,
                     BusinessName = newBusinessName,
                     ContactName = newContactName,
                     PhoneNumber = newPhoneNumber,
-                    Email = newEmail
+                    Email = newEmail,
+                    TownId = TownId
                 };
             if (string.IsNullOrEmpty(editBusinessCardId))
             {
@@ -138,7 +173,7 @@ else if (isLoading)
             newEmail = string.Empty;
         }
     }
-    private void EditBusinessCard(BusinessCard card)
+    private void EditBusinessCard(BusinessCardDto card)
     {
         newBusinessName = card.BusinessName;
         newContactName = card.ContactName;
@@ -151,5 +186,20 @@ else if (isLoading)
         await connection.InvokeAsync("LeaveGroup", TownId);
         await connection.StopAsync();
         await connection.DisposeAsync();
+    }
+    private async Task SaveLocalData()
+    {
+        var localData = new LocalData
+            {
+                Cards = businessCards,
+                LastSyncedTime = lastSyncedTime
+            };
+        await LocalStorage.SetItemAsync($"businessCards_{TownId}", localData);
+    }
+
+    private class LocalData
+    {
+        public List<BusinessCardDto> Cards { get; set; }
+        public DateTime LastSyncedTime { get; set; }
     }
 }
