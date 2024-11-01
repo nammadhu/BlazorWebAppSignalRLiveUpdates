@@ -1,4 +1,3 @@
-using BlazorWebAppSignalR.Client.Pages;
 using BlazorWebAppSignalR.Components;
 
 namespace BlazorWebAppSignalR

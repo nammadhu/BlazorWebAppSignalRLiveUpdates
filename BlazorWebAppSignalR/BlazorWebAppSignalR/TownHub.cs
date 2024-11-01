@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 using Shared;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
+
 public class TownHub : Hub
 {
     // Dictionary to maintain lists of business cards for each town
@@ -13,6 +14,7 @@ public class TownHub : Hub
     {
         // No need to send the list on connection
     }
+
     public async Task JoinGroup(string townId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, townId);
@@ -31,6 +33,7 @@ public class TownHub : Hub
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, townId);
     }
+
     public async Task AddBusinessCard(string townId, BusinessCard businessCardDto)
     {
         var businessCards = _businessCardsDictionary.GetOrAdd(townId, new List<BusinessCard>());
@@ -53,6 +56,5 @@ public class TownHub : Hub
                 await Clients.Group(townId).SendAsync("ReceiveBusinessCards", businessCards);
             }
         }
-
     }
 }

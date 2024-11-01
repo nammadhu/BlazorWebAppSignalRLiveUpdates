@@ -14,5 +14,4 @@ public class BusinessCard
     public string PhoneNumber { get; set; }
     public string Email { get; set; }
     // Add other business card properties as needed
-
 }
