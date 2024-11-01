@@ -8,6 +8,10 @@
 {
     <p>Connection lost. Attempting to reconnect...</p>
 }
+else if (isLoading)
+{
+    <p>Loading...</p>
+}
 
 <input @bind="newBusinessName" placeholder="Enter business name" />
 <input @bind="newContactName" placeholder="Enter contact name" />
@@ -39,6 +43,7 @@
     private string editBusinessCardId;
 
     private bool isConnected = true;
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -70,6 +75,7 @@
         connection.On<List<BusinessCard>>("ReceiveInitialBusinessCards", (initialCards) =>
         {
             businessCards = initialCards;
+            isLoading = false;
             StateHasChanged();
         });
 
