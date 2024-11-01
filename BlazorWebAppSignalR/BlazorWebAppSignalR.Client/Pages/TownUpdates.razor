@@ -1,7 +1,10 @@
 ﻿@page "/town/{TownId}"
 @using Microsoft.AspNetCore.SignalR.Client
 @using Shared
+@using Blazored.LocalStorage
 @inject NavigationManager Navigation
+@inject ILocalStorageService LocalStorage
+
 
 <h3>Real-Time Business Cards for @TownId</h3>
 @if (!isConnected)
@@ -45,8 +48,15 @@ else if (isLoading)
     private bool isConnected = true;
     private bool isLoading = true;
 
-    protected override async Task OnInitializedAsync()
+
+    //protected override async Task OnInitializedAsync()//this makes JS issue,so onAfterRender
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender) return;
+        // Load from local storage
+        businessCards = await LocalStorage.GetItemAsync<List<BusinessCard>>($"businessCards_{TownId}") ?? new List<BusinessCard>();
+        isLoading = (businessCards == null || businessCards.Count == 0);
+
         connection = new HubConnectionBuilder()
             .WithUrl(Navigation.ToAbsoluteUri("/townhub"))
             .Build();
@@ -72,14 +82,15 @@ else if (isLoading)
                     }
                 };
 
-        connection.On<List<BusinessCard>>("ReceiveInitialBusinessCards", (initialCards) =>
+        connection.On<List<BusinessCard>>("ReceiveInitialBusinessCards", async (initialCards) =>
         {
             businessCards = initialCards;
             isLoading = false;
+            await LocalStorage.SetItemAsync($"businessCards_{TownId}", businessCards);
             StateHasChanged();
         });
 
-        connection.On<BusinessCard>("ReceiveBusinessCard", (updatedCard) =>
+        connection.On<BusinessCard>("ReceiveBusinessCard", async (updatedCard) =>
         {
             // Update or add the business card in the list
             var index = businessCards.FindIndex(bc => bc.Id == updatedCard.Id);
@@ -91,6 +102,7 @@ else if (isLoading)
             {
                 businessCards.Add(updatedCard);
             }
+            await LocalStorage.SetItemAsync($"businessCards_{TownId}", businessCards);
             StateHasChanged();
         });
 
