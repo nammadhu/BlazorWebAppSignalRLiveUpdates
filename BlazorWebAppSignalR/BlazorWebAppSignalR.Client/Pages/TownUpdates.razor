@@ -49,19 +49,43 @@
                 {
                     isConnected = false;
                     StateHasChanged();
-                    await Task.Delay(new Random().Next(0, 5) * 1000);
-                    await connection.StartAsync();
-                    isConnected = true;
-                    await connection.InvokeAsync("JoinGroup", TownId);
-                    StateHasChanged();
+                    while (!isConnected)
+                    {
+                        try
+                        {
+                            await Task.Delay(5000);
+                            await connection.StartAsync();
+                            await connection.InvokeAsync("JoinGroup", TownId);
+                            isConnected = true;
+                        }
+                        catch
+                        {
+                            // Reconnection failed, continue loop
+                        }
+
+                        StateHasChanged();
+                    }
                 };
 
-        connection.On<List<BusinessCard>>("ReceiveBusinessCards", (cards) =>
+        connection.On<List<BusinessCard>>("ReceiveInitialBusinessCards", (initialCards) =>
         {
-            // Update towns list
-            businessCards = cards;
+            businessCards = initialCards;
             StateHasChanged();
+        });
 
+        connection.On<BusinessCard>("ReceiveBusinessCard", (updatedCard) =>
+        {
+            // Update or add the business card in the list
+            var index = businessCards.FindIndex(bc => bc.Id == updatedCard.Id);
+            if (index >= 0)
+            {
+                businessCards[index] = updatedCard;
+            }
+            else
+            {
+                businessCards.Add(updatedCard);
+            }
+            StateHasChanged();
         });
 
         await connection.StartAsync();
