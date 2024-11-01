@@ -22,7 +22,7 @@
     protected override async Task OnInitializedAsync()
     {
         connection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/townhub"))
+            .WithUrl(Navigation.ToAbsoluteUri("/TownHub"))
             .Build();
 
         connection.On<TownDto>("ReceiveMessage", (town) =>

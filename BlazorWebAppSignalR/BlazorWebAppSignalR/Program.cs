@@ -47,7 +47,8 @@ namespace BlazorWebAppSignalR
             {
                 endpoints.MapRazorPages();
                 endpoints.MapControllers();
-                endpoints.MapHub<TownHub>("/townhub");
+                endpoints.MapHub<TownHub>($"/{nameof(TownHub)}");//case is sensitive client-server should match
+                endpoints.MapHub<TownsHub>($"/{nameof(TownsHub)}");
                 endpoints.MapFallbackToFile("index.html");
             });
             app.Run();
