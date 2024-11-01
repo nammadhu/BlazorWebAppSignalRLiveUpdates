@@ -14,10 +14,12 @@
 <ul>
     @foreach (var card in businessCards)
     {
-        <li>@card.BusinessName - @card.ContactName - @card.PhoneNumber - @card.Email</li>
+        <li>
+            @card.BusinessName - @card.ContactName - @card.PhoneNumber - @card.Email
+            <button @onclick="() => EditBusinessCard(card)">Edit</button>
+        </li>
     }
 </ul>
-<button @onclick="SendMessage">Send Test Update</button>
 
 @code {
     private HubConnection connection;
@@ -30,6 +32,8 @@
     private string newContactName;
     private string newPhoneNumber;
     private string newEmail;
+    private string editBusinessCardId;
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -47,7 +51,7 @@
 
         await connection.StartAsync();
         await connection.InvokeAsync("JoinGroup", TownId);
-        // Initial data load - moved to JoinGroup in the hub
+        // Initial data load - moved to JoinGroup in the hub response
         //towns = new List<TownDto> { new TownDto() { Id = "0", Name = "Zero Town" } }; //await TownService.GetTownsAsync(TownId);
     }
     private async Task AddBusinessCard()
@@ -56,25 +60,35 @@
         {
             var businessCardDto = new BusinessCard
                 {
-                    Id = Guid.NewGuid().ToString(),
+                    Id = string.IsNullOrEmpty(editBusinessCardId) ? Guid.NewGuid().ToString() : editBusinessCardId,
                     BusinessName = newBusinessName,
                     ContactName = newContactName,
                     PhoneNumber = newPhoneNumber,
                     Email = newEmail
                 };
-            await connection.InvokeAsync("AddBusinessCard", TownId, businessCardDto);
+            if (string.IsNullOrEmpty(editBusinessCardId))
+            {
+                await connection.InvokeAsync("AddBusinessCard", TownId, businessCardDto);
+            }
+            else
+            {
+                await connection.InvokeAsync("UpdateBusinessCard", TownId, businessCardDto);
+                editBusinessCardId = null;
+            }
             newBusinessName = string.Empty;
             newContactName = string.Empty;
             newPhoneNumber = string.Empty;
             newEmail = string.Empty;
         }
     }
-    public async Task SendMessage()
+    private void EditBusinessCard(BusinessCard card)
     {
-        var townDto = new TownDto { Id = TownId, Name = "Updated Town:" + DateTime.Now.ToString() }; // Example data
-        await connection.InvokeAsync("SendMessageToGroup", TownId, townDto);
+        newBusinessName = card.BusinessName;
+        newContactName = card.ContactName;
+        newPhoneNumber = card.PhoneNumber;
+        newEmail = card.Email;
+        editBusinessCardId = card.Id;
     }
-
     public async ValueTask DisposeAsync()
     {
         await connection.InvokeAsync("LeaveGroup", TownId);

@@ -39,4 +39,20 @@ public class TownHub : Hub
         // Broadcast the updated list to all clients in the group
         await Clients.Group(townId).SendAsync("ReceiveBusinessCards", businessCards);
     }
+
+    public async Task UpdateBusinessCard(string townId, BusinessCard businessCardDto)
+    {
+        if (_businessCardsDictionary.TryGetValue(townId, out var businessCards))
+        {
+            var index = businessCards.FindIndex(bc => bc.Id == businessCardDto.Id);
+            if (index >= 0)
+            {
+                businessCards[index] = businessCardDto;
+
+                // Broadcast the updated list to all clients in the group
+                await Clients.Group(townId).SendAsync("ReceiveBusinessCards", businessCards);
+            }
+        }
+
+    }
 }
