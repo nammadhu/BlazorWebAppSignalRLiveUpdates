@@ -9,9 +9,6 @@ namespace BlazorWebAppSignalR
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            builder.Services.AddControllersWithViews();
-            builder.Services.AddRazorPages();
-            builder.Services.AddSignalR();
             // Add services to the container.
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents()
@@ -32,25 +29,15 @@ namespace BlazorWebAppSignalR
             }
 
             app.UseHttpsRedirection();
-            app.UseBlazorFrameworkFiles();
+
             app.UseStaticFiles();
             app.UseAntiforgery();
 
-            app.UseRouting();
-            app.UseAntiforgery();
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode()
                 .AddInteractiveWebAssemblyRenderMode()
                 .AddAdditionalAssemblies(typeof(Client._Imports).Assembly);
 
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapRazorPages();
-                endpoints.MapControllers();
-                endpoints.MapHub<TownHub>($"/{nameof(TownHub)}");//case is sensitive client-server should match
-                endpoints.MapHub<TownsHub>($"/{nameof(TownsHub)}");
-                endpoints.MapFallbackToFile("index.html");
-            });
             app.Run();
         }
     }
