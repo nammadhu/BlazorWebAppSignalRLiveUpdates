@@ -4,6 +4,10 @@
 @inject NavigationManager Navigation
 
 <h3>Real-Time Business Cards for @TownId</h3>
+@if (!isConnected)
+{
+    <p>Connection lost. Attempting to reconnect...</p>
+}
 
 <input @bind="newBusinessName" placeholder="Enter business name" />
 <input @bind="newContactName" placeholder="Enter contact name" />
@@ -34,12 +38,23 @@
     private string newEmail;
     private string editBusinessCardId;
 
+    private bool isConnected = true;
 
     protected override async Task OnInitializedAsync()
     {
         connection = new HubConnectionBuilder()
             .WithUrl(Navigation.ToAbsoluteUri("/townhub"))
             .Build();
+        connection.Closed += async (error) =>
+                {
+                    isConnected = false;
+                    StateHasChanged();
+                    await Task.Delay(new Random().Next(0, 5) * 1000);
+                    await connection.StartAsync();
+                    isConnected = true;
+                    await connection.InvokeAsync("JoinGroup", TownId);
+                    StateHasChanged();
+                };
 
         connection.On<List<BusinessCard>>("ReceiveBusinessCards", (cards) =>
         {
