@@ -9,12 +9,12 @@ namespace BlazorWebAppSignalR.Controllers;
 [ApiController]
 public class TownController : ControllerBase
 {
-    private static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
+    //private static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
 
     [HttpGet("{townId}")]
     public ActionResult<List<BusinessCardDto>> GetBusinessCards(string townId)
     {
-        if (_businessCardsDictionary.TryGetValue(townId, out var businessCards))
+        if (TownHub._businessCardsDictionary.TryGetValue(townId, out var businessCards))
         {
             return Ok(businessCards);
         }
@@ -24,7 +24,7 @@ public class TownController : ControllerBase
     [HttpGet("delta/{townId}/{lastSyncTime}")]
     public ActionResult<List<BusinessCardDto>> GetDeltaBusinessCards(string townId, DateTime lastSyncTime)
     {
-        if (_businessCardsDictionary.TryGetValue(townId, out var businessCards))
+        if (TownHub._businessCardsDictionary.TryGetValue(townId, out var businessCards))
         {
             var deltaUpdates = businessCards.Where(bc => bc.LastUpdated > lastSyncTime).ToList();
             return Ok(deltaUpdates);

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 public class TownHub : Hub
 {
-    private static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
+    internal static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
 
     public async Task JoinGroup(string townId)
     {

@@ -50,149 +50,160 @@ else if (isLoading)
 
     private DateTime lastSyncedTime = DateTime.MinValue;
 
-    HttpClient Http; 
+    HttpClient Http;
+    protected override void OnInitialized()
+    {
+        Http = _httpClientFactory.CreateClient("TestAPI");
+        base.OnInitialized();
+    }
+
     //protected override async Task OnAfterRenderAsync(bool firstRender)
     //{if (!firstRender) return;
 
-    protected override async Task OnInitializedAsync()//this might makes JS issue,so in that case go for onAfterRenderAsync
+    //protected override async Task OnInitializedAsync()//this might makes JS issue,so in that case go for onAfterRenderAsync
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        Http = _httpClientFactory.CreateClient("TestAPI");
-        // Load from local storage
-        var storedData = await GetLocalData();
-        if (storedData != null)
+        if (firstRender || isLoading)
         {
-            businessCards = storedData.Cards;
-            lastSyncedTime = storedData.LastSyncedTime;
-
-            // Fetch delta updates from API
-            var response = await Http.GetAsync($"api/town/delta/{TownId}/{lastSyncedTime:o}");
-            if (response.IsSuccessStatusCode)
+            // Load from local storage
+            var storedData = await GetLocalData();
+            if (storedData != null)
             {
-                var deltaUpdates = await response.Content.ReadFromJsonAsync<List<BusinessCardDto>>();
-                if (deltaUpdates != null)
+                businessCards = storedData.Cards;
+                lastSyncedTime = storedData.LastSyncedTime;
+
+                // Fetch delta updates from API
+                var response = await Http.GetAsync($"api/town/delta/{TownId}/{lastSyncedTime:o}");
+                if (response.IsSuccessStatusCode)
                 {
-                    foreach (var card in deltaUpdates)
+                    var deltaUpdates = await response.Content.ReadFromJsonAsync<List<BusinessCardDto>>();
+                    if (deltaUpdates != null)
                     {
-                        var index = businessCards.FindIndex(bc => bc.Id == card.Id);
-                        if (index >= 0)
+                        foreach (var card in deltaUpdates)
                         {
-                            businessCards[index] = card;
-                        }
-                        else
-                        {
-                            businessCards.Add(card);
-                        }
-                    }
-                    lastSyncedTime = DateTime.UtcNow;
-                    await SaveLocalData();
-                }
-            }
-        }
-        else
-        {
-            // Fetch initial data from API
-            var response = await Http.GetAsync($"api/town/{TownId}");
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<List<BusinessCardDto>>();
-                if (result != null && result.Count > 0)
-                {
-                    lastSyncedTime = DateTime.UtcNow;
-                    await SaveLocalData();
-                }
-            }
-        }
-
-        isLoading = false;
-
-        //isLoading = (businessCards == null || businessCards.Count == 0);
-
-        connection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/townhub"))
-            .Build();
-        connection.Closed += async (error) =>
-                {
-                    isConnected = false;
-                    StateHasChanged();
-                    while (!isConnected)
-                    {
-                        try
-                        {
-                            await Task.Delay(10000);
-                            await connection.StartAsync();
-                            await connection.InvokeAsync("JoinGroup", TownId);
-                            isConnected = true;
-
-                            // Refresh the latest data after reconnecting
-                            //var deltaUpdates = await connection.InvokeAsync<List<BusinessCardDto>>("GetDeltaUpdates", TownId, lastSyncedTime);
-                            //since first time connecting back taking time,instead using direct api
-                            var response = await Http.GetAsync($"api/town/delta/{TownId}/{lastSyncedTime:o}");
-                            if (response.IsSuccessStatusCode)
+                            var index = businessCards.FindIndex(bc => bc.Id == card.Id);
+                            if (index >= 0)
                             {
-                                var deltaUpdates = await response.Content.ReadFromJsonAsync<List<BusinessCardDto>>();
-                                if (deltaUpdates != null && deltaUpdates.Count > 0)
-                                {
-                                    foreach (var card in deltaUpdates)
-                                    {
-                                        var index = businessCards.FindIndex(bc => bc.Id == card.Id);
-                                        if (index >= 0)
-                                        {
-                                            businessCards[index] = card;
-                                        }
-                                        else
-                                        {
-                                            businessCards.Add(card);
-                                        }
-                                    }
-                                    lastSyncedTime = DateTime.UtcNow;
-                                    await SaveLocalData();
-                                }
+                                businessCards[index] = card;
+                            }
+                            else
+                            {
+                                businessCards.Add(card);
                             }
                         }
-                        catch
-                        {
-                            // Reconnection failed, continue loop
-                        }
-
-                        StateHasChanged();
+                        lastSyncedTime = DateTime.UtcNow;
+                        await SaveLocalData();
                     }
-                };
-
-        /* instead will use api either first /reconnect with Full/delta changes
-        connection.On<List<BusinessCardDto>>("ReceiveInitialBusinessCards", async (initialCards) =>
-        {
-            if (initialCards.Count != businessCards.Count)
+                }
+            }
+            else
             {
-                businessCards = initialCards;
-                lastSyncedTime = DateTime.UtcNow;
-                await SaveLocalData();
+                // Fetch initial data from API
+                var response = await Http.GetAsync($"api/town/{TownId}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<List<BusinessCardDto>>();
+                    if (result != null && result.Count > 0)
+                    {
+                        businessCards = result;
+                        lastSyncedTime = DateTime.UtcNow;
+                        await SaveLocalData();
+                    }
+                }
             }
 
             isLoading = false;
             StateHasChanged();
-        }); */
-
-        connection.On<BusinessCardDto>("ReceiveBusinessCard", async (updatedCard) =>
+        }
+        if (connection == null)
         {
-            // Update or add the business card in the list
-            var index = businessCards.FindIndex(bc => bc.Id == updatedCard.Id);
-            if (index >= 0)
-            {
-                businessCards[index] = updatedCard;
-            }
-            else
-            {
-                businessCards.Add(updatedCard);
-            }
-            lastSyncedTime = DateTime.UtcNow;
-            await SaveLocalData();
-            StateHasChanged();
-        });
+            connection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/townhub"))
+                .Build();
+            connection.Closed += async (error) =>
+                    {
+                        isConnected = false;
+                        StateHasChanged();
+                        while (!isConnected)
+                        {
+                            try
+                            {
+                                await Task.Delay(10000);
+                                await connection.StartAsync();
+                                await connection.InvokeAsync("JoinGroup", TownId);
+                                isConnected = true;
 
-        await connection.StartAsync();
-        await connection.InvokeAsync("JoinGroup", TownId);
-        // Initial data load - moved to JoinGroup in the hub response
-        //towns = new List<TownDto> { new TownDto() { Id = "0", Name = "Zero Town" } }; //await TownService.GetTownsAsync(TownId);
+                                // Refresh the latest data after reconnecting
+                                //var deltaUpdates = await connection.InvokeAsync<List<BusinessCardDto>>("GetDeltaUpdates", TownId, lastSyncedTime);
+                                //since first time connecting back taking time,instead using direct api
+                                var response = await Http.GetAsync($"api/town/delta/{TownId}/{lastSyncedTime:o}");
+                                if (response.IsSuccessStatusCode)
+                                {
+                                    var deltaUpdates = await response.Content.ReadFromJsonAsync<List<BusinessCardDto>>();
+                                    if (deltaUpdates != null && deltaUpdates.Count > 0)
+                                    {
+                                        foreach (var card in deltaUpdates)
+                                        {
+                                            var index = businessCards.FindIndex(bc => bc.Id == card.Id);
+                                            if (index >= 0)
+                                            {
+                                                businessCards[index] = card;
+                                            }
+                                            else
+                                            {
+                                                businessCards.Add(card);
+                                            }
+                                        }
+                                        lastSyncedTime = DateTime.UtcNow;
+                                        await SaveLocalData();
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                // Reconnection failed, continue loop
+                            }
+
+                            StateHasChanged();
+                        }
+                    };
+
+            /* instead will use api either first /reconnect with Full/delta changes
+            connection.On<List<BusinessCardDto>>("ReceiveInitialBusinessCards", async (initialCards) =>
+            {
+                if (initialCards.Count != businessCards.Count)
+                {
+                    businessCards = initialCards;
+                    lastSyncedTime = DateTime.UtcNow;
+                    await SaveLocalData();
+                }
+
+                isLoading = false;
+                StateHasChanged();
+            }); */
+
+            connection.On<BusinessCardDto>("ReceiveBusinessCard", async (updatedCard) =>
+            {
+                // Update or add the business card in the list
+                var index = businessCards.FindIndex(bc => bc.Id == updatedCard.Id);
+                if (index >= 0)
+                {
+                    businessCards[index] = updatedCard;
+                }
+                else
+                {
+                    businessCards.Add(updatedCard);
+                }
+                lastSyncedTime = DateTime.UtcNow;
+                await SaveLocalData();
+                StateHasChanged();
+            });
+
+            await connection.StartAsync();
+            await connection.InvokeAsync("JoinGroup", TownId);
+            // Initial data load - moved to JoinGroup in the hub response
+            //towns = new List<TownDto> { new TownDto() { Id = "0", Name = "Zero Town" } }; //await TownService.GetTownsAsync(TownId);
+        }
     }
     private async Task AddBusinessCard()
     {
