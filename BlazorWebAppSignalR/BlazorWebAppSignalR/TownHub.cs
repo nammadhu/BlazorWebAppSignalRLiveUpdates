@@ -1,70 +1,72 @@
 ﻿namespace BlazorWebAppSignalR;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Shared;
 using System.Collections.Concurrent;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 public class TownHub : Hub
 {
-    internal static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
+    //internal static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
+    internal static ConcurrentDictionary<int, (List<iCardDto> VerifiedCardList, List<iCardDto> DraftCardList)> _businessCardsDictionary = new ConcurrentDictionary<int, (List<iCardDto>, List<iCardDto>)>();
 
-    public async Task JoinGroup(string townId)
+    public async Task JoinGroup(int townId)
     {
-        await Groups.AddToGroupAsync(Context.ConnectionId, townId);
-        /*, since first time taking time to load,so instead will use direct api to fetch full/delta
-        if (_businessCardsDictionary.TryGetValue(townId, out var businessCards))
+        await Groups.AddToGroupAsync(Context.ConnectionId, townId.ToString());
+    }
+
+    public async Task LeaveGroup(int townId)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, townId.ToString());
+    }
+
+    //[Authorize]
+    public async Task AddBusinessCard(int townId, iCardDto businessCardDto, bool isVerified)
+    {
+        //todo if role admin then only verified
+        /*
+         var userId = Context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var roles = Context.User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (isVerified && !roles.Contains("Admin"))
         {
-            await Clients.Caller.SendAsync("ReceiveInitialBusinessCards", businessCards);
+            throw new HubException("Only admins can add verified cards.");
+        }
+        */
+
+        var businessCards = _businessCardsDictionary.GetOrAdd(townId, (new List<iCardDto>(), new List<iCardDto>()));
+        businessCardDto.LastUpdated = DateTime.UtcNow;
+
+        if (isVerified)
+        {
+            businessCards.VerifiedCardList.Add(businessCardDto);
         }
         else
         {
-            _businessCardsDictionary[townId] = new List<BusinessCardDto>();
-            await Clients.Caller.SendAsync("ReceiveInitialBusinessCards", new List<BusinessCardDto>());
-        }*/
-    }
+            businessCards.DraftCardList.Add(businessCardDto);
+        }
 
-    public async Task LeaveGroup(string townId)
-    {
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, townId);
-    }
-
-    public async Task AddBusinessCard(string townId, BusinessCardDto businessCardDto)
-    {
-        var businessCards = _businessCardsDictionary.GetOrAdd(townId, new List<BusinessCardDto>());
-        businessCardDto.LastUpdated = DateTime.UtcNow;
-        businessCards.Add(businessCardDto);
         // Broadcast the new business card to all clients in the group
-        await Clients.Group(townId).SendAsync("ReceiveBusinessCard", businessCardDto);
+        await Clients.Group(townId.ToString()).SendAsync("ReceiveBusinessCard", businessCardDto, isVerified);
     }
 
-    public async Task UpdateBusinessCard(string townId, BusinessCardDto businessCardDto)
+    //[Authorize]
+    public async Task UpdateBusinessCard(int townId, iCardDto businessCardDto, bool isVerified)
     {
         if (_businessCardsDictionary.TryGetValue(townId, out var businessCards))
         {
-            var index = businessCards.FindIndex(bc => bc.Id == businessCardDto.Id);
+            var cardList = isVerified ? businessCards.VerifiedCardList : businessCards.DraftCardList;
+            var index = cardList.FindIndex(bc => bc.Id == businessCardDto.Id);
             if (index >= 0)
             {
-                {
-                    businessCardDto.LastUpdated = DateTime.UtcNow;
-                    businessCards[index] = businessCardDto;
+                businessCardDto.LastUpdated = DateTime.UtcNow;
+                cardList[index] = businessCardDto;
 
-                    // Broadcast the updated business card to all clients in the group
-                    await Clients.Group(townId).SendAsync("ReceiveBusinessCard", businessCardDto);
-                }
+                // Broadcast the updated business card to all clients in the group
+                await Clients.Group(townId.ToString()).SendAsync("ReceiveBusinessCard", businessCardDto, isVerified);
             }
         }
     }
-
-    //may be this also no more required
-    public async Task<List<BusinessCardDto>> GetDeltaUpdates(string townId, DateTime lastUpdated)
-    {
-        if (_businessCardsDictionary.TryGetValue(townId, out var businessCards))
-        {
-            var deltaUpdates = businessCards.Where(bc => bc.LastUpdated > lastUpdated).ToList();
-            return deltaUpdates;
-        }
-        return new List<BusinessCardDto>();
-    }
-
 }
