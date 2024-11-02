@@ -8,11 +8,10 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using System.Timers;
 
+//internal static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
+//internal static ConcurrentDictionary<int, (List<iCardDto> VerifiedCardList, List<iCardDto> DraftCardList)> _businessCardsDictionary = new ConcurrentDictionary<int, (List<iCardDto>, List<iCardDto>)>();
 public class TownHub : Hub
 {
-    //internal static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
-    //internal static ConcurrentDictionary<int, (List<iCardDto> VerifiedCardList, List<iCardDto> DraftCardList)> _businessCardsDictionary = new ConcurrentDictionary<int, (List<iCardDto>, List<iCardDto>)>();
-
     internal static ConcurrentDictionary<int, (List<iCardDto> VerifiedCardList, List<iCardDto> DraftCardList, int UserCount, DateTime LastAccessed)> _businessCardsDictionary = new ConcurrentDictionary<int, (List<iCardDto>, List<iCardDto>, int, DateTime)>();
 
     private static readonly Timer cleanupTimer;
@@ -21,6 +20,10 @@ public class TownHub : Hub
         cleanupTimer = new Timer(60000); // Check every minute
         cleanupTimer.Elapsed += CleanupExpiredEntries;
         cleanupTimer.Start();
+    }
+    public TownHub()//for service related instantiation
+    { 
+    
     }
 
     public async Task JoinGroup(int townId)
@@ -92,7 +95,7 @@ public class TownHub : Hub
         }
     }
 
-    private static void CleanupExpiredEntries(object sender, ElapsedEventArgs e)
+    private static void CleanupExpiredEntries(object? sender, ElapsedEventArgs e)
     {
         var expirationTime = DateTime.UtcNow.AddMinutes(-10); // Entries older than 10 minutes will be removed
 
