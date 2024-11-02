@@ -12,6 +12,7 @@ public class TownHub : Hub
     public async Task JoinGroup(string townId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, townId);
+        /*, since first time taking time to load,so instead will use direct api to fetch full/delta
         if (_businessCardsDictionary.TryGetValue(townId, out var businessCards))
         {
             await Clients.Caller.SendAsync("ReceiveInitialBusinessCards", businessCards);
@@ -20,7 +21,7 @@ public class TownHub : Hub
         {
             _businessCardsDictionary[townId] = new List<BusinessCardDto>();
             await Clients.Caller.SendAsync("ReceiveInitialBusinessCards", new List<BusinessCardDto>());
-        }
+        }*/
     }
 
     public async Task LeaveGroup(string townId)
@@ -54,6 +55,8 @@ public class TownHub : Hub
             }
         }
     }
+
+    //may be this also no more required
     public async Task<List<BusinessCardDto>> GetDeltaUpdates(string townId, DateTime lastUpdated)
     {
         if (_businessCardsDictionary.TryGetValue(townId, out var businessCards))

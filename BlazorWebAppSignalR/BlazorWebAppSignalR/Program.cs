@@ -9,6 +9,12 @@ namespace BlazorWebAppSignalR
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            builder.Services.AddHttpClient();
+            builder.Services.AddHttpClient("TestAPI", client =>
+            {
+                client.BaseAddress = new Uri("https://localhost:7259");
+            });
+
             builder.Services.AddControllersWithViews();
             builder.Services.AddRazorPages();
             builder.Services.AddSignalR();
@@ -48,7 +54,7 @@ namespace BlazorWebAppSignalR
             {
                 endpoints.MapRazorPages();
                 endpoints.MapControllers();
-                endpoints.MapHub<TownHub>("/townhub");
+                endpoints.MapHub<TownHub>($"/townhub");
                 endpoints.MapFallbackToFile("index.html");
             });
             app.Run();
