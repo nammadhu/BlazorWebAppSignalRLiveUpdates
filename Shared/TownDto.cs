@@ -22,16 +22,11 @@ public class iCardDto
     }
     // Add other business card properties as needed
 
-    public class LocalData
+    public class TownCardsDto
     {
-        public List<iCardDto> VerifiedCardList { get; set; }
-        public List<iCardDto> DraftCardList { get; set; }
+        public List<iCardDto>? VerifiedCards { get; set; }
+        public List<iCardDto>? DraftCards { get; set; }
         public DateTime LastSyncedTime { get; set; }
     }
 
-    public class FullData
-    {
-        public List<iCardDto> VerifiedCardList { get; set; }
-        public List<iCardDto> DraftCardList { get; set; }
-    }
 }

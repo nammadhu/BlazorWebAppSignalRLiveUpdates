@@ -13,28 +13,28 @@ public class TownController : ControllerBase
     //private static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
 
     [HttpGet("{townId}")]
-    public ActionResult<FullData> GetBusinessCards(int townId)
+    public ActionResult<TownCardsDto> GetBusinessCards(int townId)
     {
         if (TownHub._businessCardsDictionary.TryGetValue(townId, out var businessCards))
         {
-            return Ok(new FullData
+            return Ok(new TownCardsDto
             {
-                VerifiedCardList = businessCards.VerifiedCardList,
-                DraftCardList = businessCards.DraftCardList
+                VerifiedCards = businessCards.VerifiedCardList,
+                DraftCards = businessCards.DraftCardList
             });
         }
         return NotFound();
     }
 
     [HttpGet("delta/{townId}/{lastSyncTime}")]
-    public ActionResult<FullData> GetDeltaBusinessCards(int townId, DateTime lastSyncTime)
+    public ActionResult<TownCardsDto> GetDeltaBusinessCards(int townId, DateTime lastSyncTime)
     {
         if (TownHub._businessCardsDictionary.TryGetValue(townId, out var businessCards))
         {
-            var deltaData = new FullData
+            var deltaData = new TownCardsDto
             {
-                VerifiedCardList = businessCards.VerifiedCardList.Where(bc => bc.LastUpdated > lastSyncTime).ToList(),
-                DraftCardList = businessCards.DraftCardList.Where(bc => bc.LastUpdated > lastSyncTime).ToList()
+                VerifiedCards = businessCards.VerifiedCardList.Where(bc => bc.LastUpdated > lastSyncTime).ToList(),
+                DraftCards = businessCards.DraftCardList.Where(bc => bc.LastUpdated > lastSyncTime).ToList()
             };
             return Ok(deltaData);
         }

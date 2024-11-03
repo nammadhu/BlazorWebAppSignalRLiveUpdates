@@ -10,12 +10,14 @@ like Ex1 ,Ex2 ...
 First Time,
 OnInitializedAsync only confuigured SignalR()
 on first time load,
-if fetch from localstorage exists use+ Get Delta Updates(API response) 
+if fetch from localstorage exists use+ Process Delta Updates(API response) 
 else fetch full (API response)
 Then store on cache local storage
 
 SingalR configured as,
-when joined first time to make sure, checks for Delta Updates difference
+when joined first time,signalR can be used but its taking time so instead Process Delta Updates(API response) 
+ to make sure
+ 
 Then whenever any new cards added/updated will Broadcast and deliver to clients
 
 

@@ -91,11 +91,11 @@ else if (!isConnected)
     {
         if (firstRender || isLoading)
         {
-            var storedData = await LocalStorage.GetItemAsync<LocalData>($"businessCards_{TownId}");
+            var storedData = await LocalStorage.GetItemAsync<TownCardsDto>($"businessCards_{TownId}");
             if (storedData != null)
             {
-                verifiedCards = storedData.VerifiedCardList;
-                draftCards = storedData.DraftCardList;
+                verifiedCards = storedData.VerifiedCards??[];
+                draftCards = storedData.DraftCards??[];
                 lastSyncedTime = storedData.LastSyncedTime;
 
                 // Fetch delta updates from API
@@ -107,11 +107,11 @@ else if (!isConnected)
                 var response = await Http.GetAsync($"api/town/{TownId}");
                 if (response.IsSuccessStatusCode)
                 {
-                    var fullData = await response.Content.ReadFromJsonAsync<FullData>();
+                    var fullData = await response.Content.ReadFromJsonAsync<TownCardsDto>();
                     if (fullData != null)
                     {
-                        verifiedCards = fullData.VerifiedCardList;
-                        draftCards = fullData.DraftCardList;
+                        verifiedCards = fullData.VerifiedCards??[];
+                        draftCards = fullData.DraftCards??[];
                         lastSyncedTime = DateTime.UtcNow;
                         await SaveLocalData();
                     }
@@ -187,10 +187,10 @@ else if (!isConnected)
         var response = await Http.GetAsync($"api/town/delta/{TownId}/{lastSyncedTime:o}");
         if (response.IsSuccessStatusCode)
         {
-            var deltaUpdates = await response.Content.ReadFromJsonAsync<FullData>();
+            var deltaUpdates = await response.Content.ReadFromJsonAsync<TownCardsDto>();
             if (deltaUpdates != null)
             {
-                foreach (var card in deltaUpdates.VerifiedCardList)
+                foreach (var card in deltaUpdates.VerifiedCards)
                 {
                     var index = verifiedCards.FindIndex(bc => bc.Id == card.Id);
                     if (index >= 0)
@@ -199,7 +199,7 @@ else if (!isConnected)
                         verifiedCards.Add(card);
                 }
 
-                foreach (var card in deltaUpdates.DraftCardList)
+                foreach (var card in deltaUpdates.DraftCards)
                 {
                     var index = draftCards.FindIndex(bc => bc.Id == card.Id);
                     if (index >= 0)
@@ -267,10 +267,10 @@ else if (!isConnected)
 
     private async Task SaveLocalData()
     {
-        var localData = new LocalData
+        var localData = new TownCardsDto
             {
-                VerifiedCardList = verifiedCards,
-                DraftCardList = draftCards,
+                VerifiedCards = verifiedCards,
+                DraftCards = draftCards,
                 LastSyncedTime = lastSyncedTime
             };
         await LocalStorage.SetItemAsync($"businessCards_{TownId}", localData);
