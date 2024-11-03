@@ -190,6 +190,7 @@ else if (!isConnected)
             var deltaUpdates = await response.Content.ReadFromJsonAsync<TownCardsDto>();
             if (deltaUpdates != null)
             {
+                deltaUpdates.VerifiedCards ??= new();
                 foreach (var card in deltaUpdates.VerifiedCards)
                 {
                     var index = verifiedCards.FindIndex(bc => bc.Id == card.Id);
@@ -199,6 +200,7 @@ else if (!isConnected)
                         verifiedCards.Add(card);
                 }
 
+                deltaUpdates.DraftCards ??= new();
                 foreach (var card in deltaUpdates.DraftCards)
                 {
                     var index = draftCards.FindIndex(bc => bc.Id == card.Id);
