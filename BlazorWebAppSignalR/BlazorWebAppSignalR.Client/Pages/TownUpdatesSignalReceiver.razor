@@ -65,6 +65,7 @@ else if (!isConnected)
     private bool isConnected = true;
     private bool isLoading = true;
     private DateTime lastSyncedTime = DateTime.MinValue;
+    CancellationTokenSource _cts = new();
     //private bool shouldLoadData = true;
     HttpClient Http;
     // private ClaimsPrincipal user;
@@ -178,7 +179,7 @@ else if (!isConnected)
             });
 
             await connection.StartAsync();
-            await connection.InvokeAsync("JoinGroup", TownId);
+            await connection.InvokeAsync("JoinGroup", TownId, _cts.Token);
         }
     }
 
