@@ -86,33 +86,33 @@ else if (!isConnected)
         //     userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         //     userRole = user.FindFirst(ClaimTypes.Role)?.Value;
         // }
-        await SignalRConfigure();
+        await SignalRConfigure(_cts.Token);
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender || isLoading)
         {
-            var storedData = await LocalStorage.GetItemAsync<TownCardsDto>($"businessCards_{TownId}");
+            var storedData = await LocalStorage.GetItemAsync<TownCardsDto>($"businessCards_{TownId}", _cts.Token);
             if (storedData != null)
             {
-                verifiedCards = storedData.VerifiedCards??[];
-                draftCards = storedData.DraftCards??[];
+                verifiedCards = storedData.VerifiedCards ?? [];
+                draftCards = storedData.DraftCards ?? [];
                 lastSyncedTime = storedData.LastSyncedTime;
 
                 // Fetch delta updates from API
-                await ProcessDeltaUpdates();
+                await ProcessDeltaUpdates(_cts.Token);
             }
             else
             {
                 // Fetch initial data from API
-                var response = await Http.GetAsync($"api/town/{TownId}");
+                var response = await Http.GetAsync($"api/town/{TownId}", _cts.Token);
                 if (response.IsSuccessStatusCode)
                 {
-                    var fullData = await response.Content.ReadFromJsonAsync<TownCardsDto>();
+                    var fullData = await response.Content.ReadFromJsonAsync<TownCardsDto>(_cts.Token);
                     if (fullData != null)
                     {
-                        verifiedCards = fullData.VerifiedCards??[];
-                        draftCards = fullData.DraftCards??[];
+                        verifiedCards = fullData.VerifiedCards ?? [];
+                        draftCards = fullData.DraftCards ?? [];
                         lastSyncedTime = DateTime.UtcNow;
                         await SaveLocalData();
                     }
@@ -124,7 +124,7 @@ else if (!isConnected)
             StateHasChanged();
         }
     }
-    private async Task SignalRConfigure()
+    private async Task SignalRConfigure(CancellationToken cancellationToken = default)
     {
         if (connection == null)
         {
@@ -141,13 +141,13 @@ else if (!isConnected)
                 {
                     try
                     {
-                        await Task.Delay(5000);
-                        await connection.StartAsync();
-                        await connection.InvokeAsync("JoinGroup", TownId);
+                        await Task.Delay(5000, cancellationToken);
+                        await connection.StartAsync(cancellationToken);
+                        await connection.InvokeAsync("JoinGroup", TownId, cancellationToken);
                         isConnected = true;
 
                         // Fetch delta updates from API after reconnecting
-                        await ProcessDeltaUpdates();
+                        await ProcessDeltaUpdates(cancellationToken);
                     }
                     catch
                     {
@@ -174,21 +174,21 @@ else if (!isConnected)
                 else draftCards = cardList;
 
                 lastSyncedTime = DateTime.UtcNow;
-                await SaveLocalData();
+                await SaveLocalData(cancellationToken);
                 StateHasChanged();
             });
 
-            await connection.StartAsync();
-            await connection.InvokeAsync("JoinGroup", TownId, _cts.Token);
+            await connection.StartAsync(cancellationToken);
+            await connection.InvokeAsync("JoinGroup", TownId, cancellationToken);
         }
     }
 
-    public async Task ProcessDeltaUpdates()
+    public async Task ProcessDeltaUpdates(CancellationToken cancellationToken = default)
     {
-        var response = await Http.GetAsync($"api/town/delta/{TownId}/{lastSyncedTime:o}");
+        var response = await Http.GetAsync($"api/town/delta/{TownId}/{lastSyncedTime:o}", cancellationToken);
         if (response.IsSuccessStatusCode)
         {
-            var deltaUpdates = await response.Content.ReadFromJsonAsync<TownCardsDto>();
+            var deltaUpdates = await response.Content.ReadFromJsonAsync<TownCardsDto>(cancellationToken);
             if (deltaUpdates != null)
             {
                 deltaUpdates.VerifiedCards ??= new();
@@ -211,12 +211,12 @@ else if (!isConnected)
                         draftCards.Add(card);
                 }
                 lastSyncedTime = DateTime.UtcNow;
-                await SaveLocalData();
+                await SaveLocalData(cancellationToken);
             }
         }
     }
 
-    private async Task AddBusinessCard(bool isVerified)
+    private async Task AddBusinessCard(bool isVerified, CancellationToken cancellationToken = default)
     {
         if (!string.IsNullOrEmpty(newBusinessName) && !string.IsNullOrEmpty(newContactName))
         {
@@ -237,11 +237,11 @@ else if (!isConnected)
             // }
             if (string.IsNullOrEmpty(editBusinessCardId))
             {
-                await connection.InvokeAsync("AddBusinessCard", TownId, businessCardDto, isVerified);
+                await connection.InvokeAsync("AddBusinessCard", TownId, businessCardDto, isVerified, cancellationToken);
             }
             else
             {
-                await connection.InvokeAsync("UpdateBusinessCard", TownId, businessCardDto, isVerified);
+                await connection.InvokeAsync("UpdateBusinessCard", TownId, businessCardDto, isVerified, cancellationToken);
                 editBusinessCardId = null;
             }
 
@@ -268,7 +268,7 @@ else if (!isConnected)
         await connection.DisposeAsync();
     }
 
-    private async Task SaveLocalData()
+    private async Task SaveLocalData(CancellationToken cancellationToken = default)
     {
         var localData = new TownCardsDto
             {
@@ -276,7 +276,7 @@ else if (!isConnected)
                 DraftCards = draftCards,
                 LastSyncedTime = lastSyncedTime
             };
-        await LocalStorage.SetItemAsync($"businessCards_{TownId}", localData);
+        await LocalStorage.SetItemAsync($"businessCards_{TownId}", localData, cancellationToken);
     }
 
 }

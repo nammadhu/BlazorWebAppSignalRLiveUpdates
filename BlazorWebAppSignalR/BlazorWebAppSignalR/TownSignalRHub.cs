@@ -25,7 +25,7 @@ public class TownSignalRHub : Hub
     { 
     
     }
-
+    //NOTE: DOnt use cancellation token here at any methods like JoinGroup or LeaveGroup, it wont work
     public async Task JoinGroup(int townId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, townId.ToString());
