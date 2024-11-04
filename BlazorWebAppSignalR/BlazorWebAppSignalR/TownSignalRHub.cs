@@ -10,18 +10,18 @@ using System.Timers;
 
 //internal static ConcurrentDictionary<string, List<BusinessCardDto>> _businessCardsDictionary = new ConcurrentDictionary<string, List<BusinessCardDto>>();
 //internal static ConcurrentDictionary<int, (List<iCardDto> VerifiedCardList, List<iCardDto> DraftCardList)> _businessCardsDictionary = new ConcurrentDictionary<int, (List<iCardDto>, List<iCardDto>)>();
-public class TownHub : Hub
+public class TownSignalRHub : Hub
 {
     internal static ConcurrentDictionary<int, (List<iCardDto> VerifiedCardList, List<iCardDto> DraftCardList, int UserCount, DateTime LastAccessed)> _businessCardsDictionary = new ConcurrentDictionary<int, (List<iCardDto>, List<iCardDto>, int, DateTime)>();
 
     private static readonly Timer cleanupTimer;
-    static TownHub()
+    static TownSignalRHub()
     {
         cleanupTimer = new Timer(60000); // Check every minute
         cleanupTimer.Elapsed += CleanupExpiredEntries;
         cleanupTimer.Start();
     }
-    public TownHub()//for service related instantiation
+    public TownSignalRHub()//for service related instantiation
     { 
     
     }

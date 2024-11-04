@@ -15,7 +15,7 @@ public class TownController : ControllerBase
     [HttpGet("{townId}")]
     public ActionResult<TownCardsDto> GetBusinessCards(int townId)
     {
-        if (TownHub._businessCardsDictionary.TryGetValue(townId, out var businessCards))
+        if (TownSignalRHub._businessCardsDictionary.TryGetValue(townId, out var businessCards))
         {
             return Ok(new TownCardsDto
             {
@@ -29,7 +29,7 @@ public class TownController : ControllerBase
     [HttpGet("delta/{townId}/{lastSyncTime}")]
     public ActionResult<TownCardsDto> GetDeltaBusinessCards(int townId, DateTime lastSyncTime)
     {
-        if (TownHub._businessCardsDictionary.TryGetValue(townId, out var businessCards))
+        if (TownSignalRHub._businessCardsDictionary.TryGetValue(townId, out var businessCards))
         {
             var deltaData = new TownCardsDto
             {
